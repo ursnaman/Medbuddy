@@ -1,0 +1,10 @@
+.env
+medai_env/
+__pycache__/
+*.pyc
+*.pyo
+data/
+*.pt
+*.pkl
+node_modules/
+.DS_Store
