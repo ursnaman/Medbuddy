@@ -1,51 +1,52 @@
 from groq import Groq
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-system_prompt = """You are Medbuddy, an expert AI medical Assistant.
+HISTORY_FOLDER = "data"
 
-Remember  everthing the user tells you in this conversation.
-Ask follow-up questions to better understand their condition.
+SYSTEM_PROMPT = """You are MedBuddy, an expert AI medical assistant.
 
-when you have enough information:
-1. List the possible conditions with likelihood percentage
-2. Suggest OTC medicines with doage guidance
+When a user describes symptoms:
+1. List possible conditions with likelihood percentage
+2. Suggest OTC medicines with dosage
 3. Tell them when to see a doctor immediately
 
 Always end with: Please consult a real doctor for proper diagnosis."""
 
-class MedbuddyChat:
-    """
-    This class manages a full conversation with memory.
 
-    How memory works:
-    -We keep a list called conversation_history
-    -Every message(user + AI) gets added to this list
-    -Every time we call the API, we send the FULL history
-    -So the AI always knows everything said before
-    -This is exactly how ChatGPT remembers your messages
-    """
+class MedBuddyChat:
 
-    def __init__(self):
-        self.conversation_history = []
-        print("Medbuddy: Hello! I am Medbuddy. Tell me your symptoms.")
-        print("-" * 50)
+    def __init__(self, user_id="default_user"):
+        self.user_id = user_id
+        self.history_file = f"{HISTORY_FOLDER}/history_{user_id}.json"
+        self.conversation_history = self.load_history()
+
+    def load_history(self):
+        os.makedirs(HISTORY_FOLDER, exist_ok=True)
+        if os.path.exists(self.history_file):
+            with open(self.history_file, "r") as f:
+                return json.load(f)
+        return []
+
+    def save_history(self):
+        with open(self.history_file, "w") as f:
+            json.dump(self.conversation_history, f, indent=2)
 
     def chat(self, user_message):
-
         self.conversation_history.append({
             "role": "user",
-            "content":user_message
+            "content": user_message
         })
 
         response = client.chat.completions.create(
-            model = "llama-3.1-8b-instant",
+            model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system","content":system_prompt},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 *self.conversation_history
             ],
             temperature=0.2,
@@ -59,28 +60,10 @@ class MedbuddyChat:
             "content": ai_response
         })
 
+        self.save_history()
         return ai_response
-    
-if __name__ =="__main__":
-    print("=" *50)
-    print("Medbuddy AI  - Full Conversation Test")
-    print("Type 'quit' to exit")
-    print("=" *50)
-    print()
 
-    chat = MedbuddyChat()
-
-
-    while True:
-        user_input = input("You: ")
-
-        if user_input.lower() == "quit":
-            print("Medbuddy: Goodbye! Stay healthy!")
-            break
-
-        if not user_input.strip():
-            continue
-
-        response = chat.chat(user_input)
-        print(f"\nMedbuddy: {response}")
-        print("-" * 50)
+    def clear_history(self):
+        self.conversation_history = []
+        if os.path.exists(self.history_file):
+            os.remove(self.history_file)
